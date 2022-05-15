@@ -1,0 +1,14 @@
+services:
+    geo-db:
+      image: postgis/postgis:14-3.2
+      environment:
+        POSTGRES_USER: test
+        POSTGRES_DB: geo-db
+        POSTGRES_PASSWORD: 267
+      ports:
+        - '5432:5432'
+      volumes:
+        - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:
