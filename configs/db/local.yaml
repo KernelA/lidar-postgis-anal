@@ -1,0 +1,6 @@
+user: test
+pass: 267
+db_name: geo-db
+host: localhost
+port: 5432
+url: postgresql://${.user}:${.pass}@${.host}:${.port}/${.db_name}
