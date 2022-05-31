@@ -5,8 +5,10 @@ from sqlalchemy import create_engine
 from sqlalchemy import sql
 from sqlalchemy.orm import sessionmaker
 from geoalchemy2 import func as geosql
+from geoalchemy2 import shape
 import geopandas as geo
 import numpy as np
+from shapely import wkb
 import dash_vtk
 from dash import Dash, html, dcc, Input, Output, State
 from dash.long_callback import DiskcacheLongCallbackManager
@@ -20,11 +22,7 @@ with hydra.initialize("configs") as config_dir:
 
 FILE_DROPDOWN = "file-selection-id"
 CHUNK_DROP_DOWN = "chunk-dropdown-id"
-SIGN_INFO_TABLE_ID = "sign-info-table"
 PLOT_3D_ID = "3d-scatter-id"
-EXTERNAL_DROPDOWN = "external-id-field"
-PROGRESS_ID = "progress-id"
-RADIUS_SLIDER_ID = "selection-radius-range"
 PROGRESS_BAR_ID = "progress-bar-id"
 BUTTON_ID = "draw-button-id"
 
@@ -119,27 +117,40 @@ def select_chunk(set_progress, file_path, chunk_ids, n_click):
     Session = sessionmaker(engine)
 
     geom_col_name = "geom"
+    color_col_name = "color"
 
     with Session.begin() as session:
-        query_points = sql.select(geosql.ST_DumpPoints(LazPoints.points).geom.label(
-            geom_col_name)) \
+        query_points = sql.select(LazPoints.points.label(
+            geom_col_name), LazPoints.colors.label(color_col_name)) \
             .filter(LazPoints.file == file_path) \
             .filter(LazPoints.chunk_id.in_(chunk_ids))
 
-        points = geo.read_postgis(
+        points_data = geo.read_postgis(
             query_points, session.connection(), geom_col=geom_col_name)
 
     engine.dispose()
 
     set_progress([str(50)])
 
-    coords = np.vstack(
-        (points[geom_col_name].x, points[geom_col_name].y, points[geom_col_name].z)).T.reshape(-1)
+    xyz = []
+    colors = []
+
+    for row in points_data.itertuples(index=False):
+        for point in getattr(row, geom_col_name).geoms:
+            for coord in point.coords:
+                xyz.extend(coord)
+
+        colors.extend(np.array(getattr(row, color_col_name)).reshape(-1))
+
+    xyz = np.array(xyz)
+    xyz -= xyz.mean(axis=0)
+    xyz = xyz.reshape(-1).tolist()
 
     vtk_view = dash_vtk.View(
         [
             dash_vtk.PointCloudRepresentation(
-                xyz=coords,
+                xyz=xyz,
+                rgb=colors,
                 property={"pointSize": 2}
             )
         ],

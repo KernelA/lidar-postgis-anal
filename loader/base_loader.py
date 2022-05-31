@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Dict
 
 import numpy as np
 
@@ -10,7 +10,7 @@ class BasePointCloudLoader(ABC):
         self.path_to_file = path_to_file
 
     @abstractmethod
-    def iter_chunks(self, chunk_size: int) -> Iterable[np.ndarray]:
+    def iter_chunks(self, chunk_size: int) -> Iterable[Dict[str, np.ndarray]]:
         pass
 
     @abstractmethod

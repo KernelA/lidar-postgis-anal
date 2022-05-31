@@ -16,8 +16,8 @@ from hydra.utils import instantiate
 from db import LazPoints
 from db.base import Base
 
-from loader import BasePointCloudLoader
-from utils import append_points, DATASET_PATH
+from loader import BasePointCloudLoader, COLOR_KEY, COORDS_KEY
+from utils import append_points
 
 
 def insert_points(session: Session, file_path: str, file: h5py.File, chunk_id: int):
@@ -27,10 +27,12 @@ def insert_points(session: Session, file_path: str, file: h5py.File, chunk_id: i
     if res is not None:
         return
 
-    points = file.get(DATASET_PATH)[:]
+    points: np.ndarray = file.get(COORDS_KEY)[:]
+    colors: np.ndarray = file.get(COLOR_KEY)[:]
 
     multi_point = MultiPoint(points)
-    session.add(LazPoints(file=file_path, chunk_id=chunk_id, points=from_shape(multi_point)))
+
+    session.add(LazPoints(file=file_path, chunk_id=chunk_id, points=from_shape(multi_point), colors=colors.tolist()))
 
 
 def generate_bounds(min_value: float, max_value: float, step: float):
@@ -73,18 +75,21 @@ def insert_data(session_factory, path_to_file: str, loader_config, chunk_size: i
     chunk_ids = []
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        for chunk_xyz in loader.iter_chunks(chunk_size):
+        for i, chunk_data in enumerate(loader.iter_chunks(chunk_size), 1):
+            chunk_xyz = chunk_data["xyz"]
+            colors = chunk_data["color"]
+
             chunk_index_per_point = get_chunk_indices(
                 chunk_xyz, x_intervals, y_intervals, z_intervals)
 
-            for chunk_index in tqdm(set(chunk_index_per_point), desc="Save to hdf"):
+            for chunk_index in tqdm(set(chunk_index_per_point), desc=f"Save chunk {i} to hdf"):
                 file_path = os.path.join(tmp_dir, f"chunk_{chunk_index}.h5")
                 files.append(file_path)
                 chunk_ids.append(int(chunk_index))
 
                 with h5py.File(file_path, "a") as hdf_file:
-                    local_chunk = chunk_xyz[chunk_index_per_point == chunk_index]
-                    append_points(hdf_file, local_chunk)
+                    indices = np.nonzero(chunk_index_per_point == chunk_index)
+                    append_points(hdf_file, {COORDS_KEY: chunk_xyz[indices], COLOR_KEY: colors[indices]})
 
                 del file_path
 
@@ -101,6 +106,9 @@ def main(config):
     engine = create_engine(config.db.url)
 
     try:
+        if config.drop_db:
+            Base.metadata.drop_all(engine)
+
         Base.metadata.create_all(engine)
         CustomSession = sessionmaker(engine)
         insert_data(CustomSession, config.data.filepath, config.loader,

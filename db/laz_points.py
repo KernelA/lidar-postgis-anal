@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Integer
+from sqlalchemy import Column, BigInteger, String, Integer, ARRAY
 from geoalchemy2 import Geometry
 
 from .base import Base
@@ -12,3 +12,4 @@ class LazPoints(Base):
     file = Column(String, nullable=False)
     points = Column(Geometry("MULTIPOINTZ", dimension=3,
                     spatial_index=False, nullable=False, use_N_D_index=False))
+    colors = Column(ARRAY(Integer, zero_indexes=True, dimensions=2))

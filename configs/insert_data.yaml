@@ -11,7 +11,9 @@ data:
   filepath: ./data/Carola_PointCloud.ply
 
 loader:
- _target_: loader.ply_loader.PLYLoader
+ _target_: loader.ply_loader.PLYColorLoader
+
+drop_db: false
 
 data_splitting:
   voxel_size: 2.5

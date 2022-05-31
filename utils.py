@@ -1,14 +1,17 @@
+from typing import Dict
+
 import h5py
 import numpy as np
 
-DATASET_PATH = "/points"
 
+def append_points(file: h5py.File, points_data: Dict[str, np.ndarray]) -> None:
+    for dataset_name in points_data:
+        dataset = file.get(dataset_name)
 
-def append_points(file: h5py.File, points: np.ndarray) -> None:
-    dataset = file.get(DATASET_PATH)
+        points = points_data[dataset_name]
 
-    if dataset is None:
-        file.create_dataset(DATASET_PATH, maxshape=(None, points.shape[1]), data=points)
-    else:
-        last_index = dataset.shape[0]
-        dataset[last_index:] = points
+        if dataset is None:
+            file.create_dataset(dataset_name, maxshape=(None, points.shape[1]), data=points)
+        else:
+            last_index = dataset.shape[0]
+            dataset[last_index:] = points
