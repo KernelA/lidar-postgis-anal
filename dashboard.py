@@ -5,13 +5,13 @@ from sqlalchemy import create_engine
 from sqlalchemy import sql
 from sqlalchemy.orm import sessionmaker
 from geoalchemy2 import func as geosql
-from geoalchemy2 import shape
 import geopandas as geo
 import numpy as np
-from shapely import wkb
 import dash_vtk
-from dash import Dash, html, dcc, Input, Output, State
+import pandas as pd
+from dash import Dash, html, dcc, Input, Output, State, dash_table
 from dash.long_callback import DiskcacheLongCallbackManager
+import dash_bootstrap_components as dbc
 import diskcache
 import hydra
 
@@ -25,16 +25,17 @@ CHUNK_DROP_DOWN = "chunk-dropdown-id"
 PLOT_3D_ID = "3d-scatter-id"
 PROGRESS_BAR_ID = "progress-bar-id"
 BUTTON_ID = "draw-button-id"
+TABLE_ID = "datatable-id"
 
 CACHE_DIR = "./dashboard-cache"
 
 cache = diskcache.Cache(CACHE_DIR)
 long_callback_manager = DiskcacheLongCallbackManager(cache)
 
-app = Dash(__name__)
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 
-app.layout = html.Div([
+app.layout = dbc.Container([
     html.Div(children=[dcc.Link("View control", href="https://dash.plotly.com/vtk/intro#view")]),
     html.Label("File:", id="start"),
     dcc.Dropdown(id=FILE_DROPDOWN),
@@ -43,8 +44,14 @@ app.layout = html.Div([
     html.Div(children=[html.Button("Query points and draw", id=BUTTON_ID, style={"width": "25%"})]),
     html.Progress(id=PROGRESS_BAR_ID, max=str(100),
                   title="Loading...", style={"visibility": "hidden"}),
-    html.Div(id=PLOT_3D_ID, style={"height": "75vh"})
-]
+    dbc.Row(
+        children=[
+            dbc.Col(
+                dash_table.DataTable(id=TABLE_ID, page_action="native", sort_action="native", page_size=10, page_current=0), width=2),
+            dbc.Col(id=PLOT_3D_ID)
+        ]
+    ),
+], fluid=True
 )
 
 
@@ -68,6 +75,8 @@ def select_files(_):
 @ app.callback(
     Output(CHUNK_DROP_DOWN, "value"),
     Output(CHUNK_DROP_DOWN, "options"),
+    Output(TABLE_ID, "data"),
+    Output(TABLE_ID, "columns"),
     Input(FILE_DROPDOWN, "value"),
 )
 def select_chunk_ids(file):
@@ -75,12 +84,15 @@ def select_chunk_ids(file):
     Session = sessionmaker(engine)
 
     with Session.begin() as session:
-        all_chunk_ids = list(map(attrgetter("chunk_id"), session.query(
-            LazPoints.chunk_id).where(LazPoints.file == file)))
+        info_query = sql.select(
+            LazPoints.chunk_id.label("chunk id"), geosql.ST_NPoints(LazPoints.points).label("number of points"))\
+            .where(LazPoints.file == file).order_by("chunk id")
+
+        data = pd.read_sql(info_query, session.connection())
 
     engine.dispose()
 
-    return all_chunk_ids[0], all_chunk_ids
+    return data["chunk id"][0], data["chunk id"], data.to_dict("records"), [{"name": i, "id": i} for i in data.columns]
 
 
 @ app.long_callback(
@@ -101,6 +113,8 @@ def select_chunk_ids(file):
     ],
     progress=[Output(PROGRESS_BAR_ID, "value")],
     prevent_initial_call=True
+
+
 )
 def select_chunk(set_progress, file_path, chunk_ids, n_click):
     if isinstance(chunk_ids, numbers.Number):
@@ -144,6 +158,9 @@ def select_chunk(set_progress, file_path, chunk_ids, n_click):
 
     xyz = np.array(xyz)
     xyz -= xyz.mean(axis=0)
+    scale = 1 / max(np.linalg.norm(xyz.max(axis=0) - xyz.min(axis=0)), 1e-4)
+
+    xyz *= scale
     xyz = xyz.reshape(-1).tolist()
 
     vtk_view = dash_vtk.View(
@@ -154,6 +171,7 @@ def select_chunk(set_progress, file_path, chunk_ids, n_click):
                 property={"pointSize": 2}
             )
         ],
+
         background=[0, 0, 0]
     )
 
@@ -163,4 +181,4 @@ def select_chunk(set_progress, file_path, chunk_ids, n_click):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, dev_tools_ui=True)
+    app.run_server(debug=False, dev_tools_ui=False)
