@@ -1,6 +1,7 @@
 from operator import attrgetter
 import numbers
 
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy import create_engine
 from sqlalchemy import sql
 from sqlalchemy.orm import sessionmaker
@@ -9,7 +10,7 @@ import geopandas as geo
 import numpy as np
 import dash_vtk
 import pandas as pd
-from dash import Dash, html, dcc, Input, Output, State, dash_table
+from dash import Dash, html, dcc, Input, Output, State, dash_table, no_update
 from dash.long_callback import DiskcacheLongCallbackManager
 import dash_bootstrap_components as dbc
 import diskcache
@@ -26,13 +27,15 @@ PLOT_3D_ID = "3d-scatter-id"
 PROGRESS_BAR_ID = "progress-bar-id"
 BUTTON_ID = "draw-button-id"
 TABLE_ID = "datatable-id"
+ERROR_ID = "error-id"
 
 CACHE_DIR = "./dashboard-cache"
 
 cache = diskcache.Cache(CACHE_DIR)
 long_callback_manager = DiskcacheLongCallbackManager(cache)
 
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = Dash(__name__, external_stylesheets=[
+           dbc.themes.BOOTSTRAP], long_callback_manager=long_callback_manager)
 
 
 app.layout = dbc.Container([
@@ -41,35 +44,42 @@ app.layout = dbc.Container([
     dcc.Dropdown(id=FILE_DROPDOWN),
     html.Label("Chunk id:"),
     dcc.Dropdown(id=CHUNK_DROP_DOWN, multi=True),
+    html.P(id=ERROR_ID, style={"color": "red"}),
     html.Div(children=[html.Button("Query points and draw", id=BUTTON_ID, style={"width": "25%"})]),
     html.Progress(id=PROGRESS_BAR_ID, max=str(100),
                   title="Loading...", style={"visibility": "hidden"}),
     dbc.Row(
         children=[
             dbc.Col(
-                dash_table.DataTable(id=TABLE_ID, page_action="native", sort_action="native", page_size=10, page_current=0), width=2),
+                dash_table.DataTable(id=TABLE_ID, page_action="native", sort_action="native", page_size=12, page_current=0), width=2),
             dbc.Col(id=PLOT_3D_ID)
-        ]
-    ),
-], fluid=True
+        ], class_name="h-75"
+    )
+], fluid=True, style={"height": "90vh"}
 )
 
 
 @ app.callback(
     Output(FILE_DROPDOWN, "value"),
     Output(FILE_DROPDOWN, "options"),
+    Output(ERROR_ID, "children"),
     Input("start", "style")
 )
 def select_files(_):
-    engine = create_engine(CONFIG.db.url)
+    try:
+        engine = create_engine(CONFIG.db.url, pool_pre_ping=True)
+    except DBAPIError as exc:
+        return no_update, no_update, str(exc)
+
     Session = sessionmaker(engine)
 
     with Session.begin() as session:
-        all_files = list(map(attrgetter("file"), session.query(LazPoints.file).distinct()))
+        all_files = list(map(attrgetter("file"), session.query(
+            LazPoints.file).order_by(LazPoints.file.asc()).distinct()))
 
     engine.dispose()
 
-    return all_files[0], all_files
+    return all_files[0], all_files, ""
 
 
 @ app.callback(
@@ -80,7 +90,11 @@ def select_files(_):
     Input(FILE_DROPDOWN, "value"),
 )
 def select_chunk_ids(file):
-    engine = create_engine(CONFIG.db.url)
+    try:
+        engine = create_engine(CONFIG.db.url, pool_pre_ping=True)
+    except DBAPIError as exc:
+        return no_update, no_update, no_update, no_update
+
     Session = sessionmaker(engine)
 
     with Session.begin() as session:
@@ -96,11 +110,9 @@ def select_chunk_ids(file):
 
 
 @ app.long_callback(
-    Output(PLOT_3D_ID, "children"),
-    State(FILE_DROPDOWN, "value"),
-    State(CHUNK_DROP_DOWN, "value"),
-    Input(BUTTON_ID, "n_clicks"),
-    manager=long_callback_manager,
+    output=Output(PLOT_3D_ID, "children"),
+    inputs=[Input(BUTTON_ID, "n_clicks")],
+    state=[State(FILE_DROPDOWN, "value"), State(CHUNK_DROP_DOWN, "value")],
     running=[
         (Output(FILE_DROPDOWN, "disabled"), True, False),
         (Output(CHUNK_DROP_DOWN, "disabled"), True, False),
@@ -111,12 +123,11 @@ def select_chunk_ids(file):
             {"visibility": "hidden"},
         )
     ],
+    interval=8000,
     progress=[Output(PROGRESS_BAR_ID, "value")],
     prevent_initial_call=True
-
-
 )
-def select_chunk(set_progress, file_path, chunk_ids, n_click):
+def select_chunk(set_progress, n_click, file_path, chunk_ids):
     if isinstance(chunk_ids, numbers.Number):
         chunk_ids = [chunk_ids]
 
@@ -127,7 +138,11 @@ def select_chunk(set_progress, file_path, chunk_ids, n_click):
 
     set_progress([str(10)])
 
-    engine = create_engine(CONFIG.db.url)
+    try:
+        engine = create_engine(CONFIG.db.url, pool_pre_ping=True)
+    except DBAPIError as exc:
+        return no_update
+
     Session = sessionmaker(engine)
 
     geom_col_name = "geom"
@@ -171,11 +186,9 @@ def select_chunk(set_progress, file_path, chunk_ids, n_click):
                 property={"pointSize": 2}
             )
         ],
-
+        cameraPosition=[0, 0, 3],
         background=[0, 0, 0]
     )
-
-    set_progress([str(100)])
 
     return vtk_view
 

@@ -16,7 +16,7 @@ loader:
 drop_db: false
 
 data_splitting:
-  voxel_size: 2.5
+  voxel_size: 2
   chunk_size: 2_000_000
 
   

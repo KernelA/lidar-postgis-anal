@@ -32,7 +32,8 @@ def insert_points(session: Session, file_path: str, file: h5py.File, chunk_id: i
 
     multi_point = MultiPoint(points)
 
-    session.add(LazPoints(file=file_path, chunk_id=chunk_id, points=from_shape(multi_point), colors=colors.tolist()))
+    session.add(LazPoints(file=file_path, chunk_id=chunk_id,
+                points=from_shape(multi_point), colors=colors.tolist()))
 
 
 def generate_bounds(min_value: float, max_value: float, step: float):
@@ -82,14 +83,15 @@ def insert_data(session_factory, path_to_file: str, loader_config, chunk_size: i
             chunk_index_per_point = get_chunk_indices(
                 chunk_xyz, x_intervals, y_intervals, z_intervals)
 
-            for chunk_index in tqdm(set(chunk_index_per_point), desc=f"Save chunk {i} to hdf"):
+            for chunk_index in tqdm(set(chunk_index_per_point), desc=f"Data chunk: {i}. Save splitted chunk to hdf"):
                 file_path = os.path.join(tmp_dir, f"chunk_{chunk_index}.h5")
                 files.append(file_path)
                 chunk_ids.append(int(chunk_index))
 
                 with h5py.File(file_path, "a") as hdf_file:
                     indices = np.nonzero(chunk_index_per_point == chunk_index)
-                    append_points(hdf_file, {COORDS_KEY: chunk_xyz[indices], COLOR_KEY: colors[indices]})
+                    append_points(
+                        hdf_file, {COORDS_KEY: chunk_xyz[indices], COLOR_KEY: colors[indices]})
 
                 del file_path
 
