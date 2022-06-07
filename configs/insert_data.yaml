@@ -13,7 +13,7 @@ data:
 loader:
  _target_: loader.ply_loader.PLYColorLoader
 
-drop_db: false
+drop_db: true
 
 data_splitting:
   voxel_size: 2

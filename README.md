@@ -30,7 +30,7 @@ Check connection to the database.
 
 Download data from the Sketchfab or any PLY file with color.
 
-Modify config: [insert_data.yaml](configs/insert_data.yaml).
+Modify config: [insert_data.yaml](configs/insert_data.yaml). By default, `drop_tables` is true.
 
 Insert data:
 ```

@@ -5,11 +5,11 @@ from .base import Base
 
 
 class LazPoints(Base):
-    __tablename__ = "LidarPointsPly"
+    __tablename__ = "LidarPoints"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    chunk_id = Column(Integer, nullable=False)
-    file = Column(String, nullable=False)
+    chunk_id = Column(Integer, nullable=False, index=True)
+    file = Column(String, nullable=False, index=True)
     points = Column(Geometry("MULTIPOINTZ", dimension=3,
-                    spatial_index=False, nullable=False, use_N_D_index=False))
-    colors = Column(ARRAY(Integer, zero_indexes=True, dimensions=2))
+                    spatial_index=True, use_N_D_index=True, nullable=False))
+    colors = Column(ARRAY(Integer, zero_indexes=True, dimensions=2), nullable=False)

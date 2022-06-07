@@ -1,2 +1,2 @@
-from .base_loader import BasePointCloudLoader
-from .ply_loader import PLYColorLoader, COLOR_KEY, COORDS_KEY
+from .base_loader import BasePointCloudLoader, COLOR_KEY, COORDS_KEY
+from .ply_loader import PLYColorLoader
