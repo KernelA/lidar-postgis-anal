@@ -6,17 +6,13 @@ dependencies:
   - numpy
   - conda-forge::psycopg2==2.9
   - tqdm==4.63
-  - ipython
-  - autopep8
   - plotly::plotly==5.7.0
-  - ipykernel
-  - conda-forge::sqlalchemy==1.4
+  - conda-forge::sqlalchemy>=1.4.37
   - conda-forge::geopandas==0.10
   - h5py=3.6
   - conda-forge::shapely==1.8
   - pip:
-    - geoalchemy2~=0.11.0
-    - sqlalchemy-utils~=0.38.0
+    - geoalchemy2~=0.12.0
     - diskcache~=5.4.0
     - psutil~=5.9.0
     - dash[diskcache]~=2.4.0

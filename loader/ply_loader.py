@@ -3,10 +3,7 @@ from typing import Iterable, Tuple, Dict
 from plyfile import PlyData
 import numpy as np
 
-from .base_loader import BasePointCloudLoader
-
-COORDS_KEY = "xyz"
-COLOR_KEY = "color"
+from .base_loader import BasePointCloudLoader, COORDS_KEY, COLOR_KEY
 
 
 class PLYColorLoader(BasePointCloudLoader):

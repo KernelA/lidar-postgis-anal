@@ -3,6 +3,9 @@ from typing import Iterable, Tuple, Dict
 
 import numpy as np
 
+COORDS_KEY = "xyz"
+COLOR_KEY = "color"
+
 
 class BasePointCloudLoader(ABC):
 

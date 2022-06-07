@@ -37,16 +37,11 @@ def insert_points(session: Session, file_path: str, file: h5py.File, chunk_id: i
 
 
 def generate_bounds(min_value: float, max_value: float, step: float):
-    values = []
-    value = min_value
+    if max_value < min_value + step:
+        max_value = min_value + step
 
-    while value < max_value:
-        values.append(value)
-        value += step
-
-    values.append(max_value)
-
-    return np.array(values)
+    values = np.arange(min_value, max_value, step=step, dtype=float)
+    return np.append(values, max_value)
 
 
 def get_chunk_indices(points: np.ndarray, x_bounds: np.ndarray, y_bounds: np.ndarray, z_bounds: np.ndarray):
@@ -77,8 +72,7 @@ def insert_data(session_factory, path_to_file: str, loader_config, chunk_size: i
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         for i, chunk_data in enumerate(loader.iter_chunks(chunk_size), 1):
-            chunk_xyz = chunk_data["xyz"]
-            colors = chunk_data["color"]
+            chunk_xyz = chunk_data[COORDS_KEY]
 
             chunk_index_per_point = get_chunk_indices(
                 chunk_xyz, x_intervals, y_intervals, z_intervals)
@@ -91,7 +85,7 @@ def insert_data(session_factory, path_to_file: str, loader_config, chunk_size: i
                 with h5py.File(file_path, "a") as hdf_file:
                     indices = np.nonzero(chunk_index_per_point == chunk_index)
                     append_points(
-                        hdf_file, {COORDS_KEY: chunk_xyz[indices], COLOR_KEY: colors[indices]})
+                        hdf_file, {COORDS_KEY: chunk_xyz[indices], **{key: data[indices] for key, data in chunk_data.items() if key != COORDS_KEY}})
 
                 del file_path
 
@@ -112,6 +106,7 @@ def main(config):
             Base.metadata.drop_all(engine)
 
         Base.metadata.create_all(engine)
+
         CustomSession = sessionmaker(engine)
         insert_data(CustomSession, config.data.filepath, config.loader,
                     config.data_splitting.chunk_size, config.data_splitting.voxel_size)
